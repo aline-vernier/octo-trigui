@@ -8,6 +8,7 @@ Created on Thu Apr  2 13:50:00 2020
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QApplication,QVBoxLayout,QHBoxLayout,QWidget
 from PyQt5.QtWidgets import QComboBox,QLabel,QPushButton,QSpinBox,QLineEdit
+from PyQt5.QtWidgets import QRadioButton
 
 from PyQt5.QtGui import QIcon
 
@@ -15,6 +16,7 @@ import sys
 from serial.tools.list_ports import comports
 
 import trinamicMotor
+import posNswitch_Thread as statThread
 
 import pathlib,os
 
@@ -32,7 +34,8 @@ class TrinamGUI(QWidget) :
         self.icon=str(p.parent) + sepa + 'icons' +sepa
         self.setWindowIcon(QIcon(self.icon+'LOA.png'))
 
-
+        self.switchThread = None
+        self.posThread = None
 
         self.setup()
         self.actionButton()
@@ -49,26 +52,23 @@ class TrinamGUI(QWidget) :
 ########  Intro : connect & disconnect
         intro = QHBoxLayout()
         self.comPorts = QComboBox()
-        self.comPorts.setMaximumWidth(80)
         
         self.refresh=QPushButton('Refresh')
-        self.refresh.setMaximumWidth(120)
         
-        self.connectBtn = QPushButton('Connect Motor')
-        self.disconnectBtn = QPushButton('Disconnect Motor')
+        self.connectBtn = QPushButton('Connect')
+        self.disconnectBtn = QPushButton('Disconnect')
                 
         intro.addWidget(self.comPorts)
         intro.addWidget(self.refresh)
         intro.addWidget(self.connectBtn)
         intro.addWidget(self.disconnectBtn)
-        intro.addStretch(0)
+
         vbox.addLayout(intro)
         
 ########  Message  
         
         message = QHBoxLayout()
         self.messageBox = QLineEdit()
-        self.messageBox.setMaximumWidth(600)
         self.messageBox.setReadOnly(True)
         self.messageLabel = QLabel("Message")
         message.addWidget(self.messageLabel)
@@ -84,7 +84,7 @@ class TrinamGUI(QWidget) :
         self.movmentBox = QSpinBox()
         self.movmentBox.setMinimum(0)
         self.movmentBox.setMaximum(10000000)
-        self.movmentBox.setMaximumWidth(120)
+
     
         relHBox.addWidget(self.moveMinusBtn)
         relHBox.addWidget(self.movmentBox);
@@ -99,8 +99,7 @@ class TrinamGUI(QWidget) :
         self.movmentAbsBox = QSpinBox()
         self.movmentAbsBox.setMinimum(-10000000)
         self.movmentAbsBox.setMaximum(10000000)
-        self.movmentAbsBox.setMaximumWidth(120)
-    
+        
         absHBox.addWidget(self.movmentAbsBox)
         absHBox.addWidget(self.moveAbsBtn)
         
@@ -115,7 +114,7 @@ class TrinamGUI(QWidget) :
         self.velBox = QSpinBox()
         self.velBox.setMinimum(0)
         self.velBox.setMaximum(12000)
-        self.velBox.setMaximumWidth(120)   
+ 
         
         velHBox.addWidget(self.velBox)
         velHBox.addWidget(self.velBtn)
@@ -130,8 +129,7 @@ class TrinamGUI(QWidget) :
         self.accBox = QSpinBox()
         self.accBox.setMinimum(0)
         self.accBox.setMaximum(12000)
-        self.accBox.setMaximumWidth(120)   
-        
+
         accHBox.addWidget(self.accBox)
         accHBox.addWidget(self.accBtn)
         
@@ -141,17 +139,35 @@ class TrinamGUI(QWidget) :
         
         posNStopHBox=QHBoxLayout()
         self.posBox = QLineEdit()
-        self.posBox.setMaximumWidth(80)
         self.posBox.setReadOnly(True)
-        self.posLabel = QLabel("Curr Pos")
+        self.posBox.setStyleSheet("border: 1px solid red")
+
+        self.posLabel = QLabel("Curr. Pos.")
+        self.setZeroBtn = QPushButton('Zero here')
         
         self.STOP_Btn = QPushButton('STOP !')
         
         posNStopHBox.addWidget(self.posLabel)
         posNStopHBox.addWidget(self.posBox)
+        posNStopHBox.addWidget(self.setZeroBtn)
         posNStopHBox.addWidget(self.STOP_Btn)
         
         vbox.addLayout(posNStopHBox)
+        
+########  End switched   
+        
+        switchHBox=QHBoxLayout()
+        
+        self.leftSwitch = QRadioButton("Left Stop")
+        self.rightSwitch = QRadioButton("Right Stop")
+        self.rightSwitch.setChecked(False)
+        self.leftSwitch.setChecked(False)
+
+        switchHBox.addWidget(self.leftSwitch)
+        switchHBox.addWidget(self.rightSwitch)
+        
+        vbox.addLayout(switchHBox)
+        
         
 ########  Set full layout
 
@@ -178,6 +194,7 @@ class TrinamGUI(QWidget) :
         self.moveAbsBtn.clicked.connect(self.moveAbsMotor)
         self.velBtn.clicked.connect(self.changeVel)
         self.accBtn.clicked.connect(self.changeAcc)
+        self.setZeroBtn.clicked.connect(self.setZero)
         self.STOP_Btn.clicked.connect(self.stopMotor)
 
 ###############################################################################
@@ -212,6 +229,13 @@ class TrinamGUI(QWidget) :
             except Exception as e:
                 self.messageBox.setText(str(e))
             else :
+                self.posThread = statThread.CheckStatusThread(self.changePosVal, 0.1)
+                self.posThread.start()
+                
+                #self.switchThread = statThread.CheckStatusThread(self.setSwitchStatus,
+                #                                                 0.1)
+                #self.switchThread.start()
+                
                 self.connectBtn.setEnabled(False)
 
     
@@ -219,7 +243,8 @@ class TrinamGUI(QWidget) :
 
         try:
             self.motor.close()
-            
+            self.posThread.stop()
+            #self.switchThread.stop()
         except :
             self.messageBox.setText('Mot close fail')
             pass
@@ -270,6 +295,13 @@ class TrinamGUI(QWidget) :
             self.messageBox.setText('Acc fail:'+ str(e))
             pass
     
+    def setZero(self):
+        try:
+            self.motor.set_param(1, 0)
+        except Exception as e:
+            self.messageBox.setText('Zero fail:'+ str(e))
+        else: 
+            self.posBox.setText(str(self.motor.get_pos()))
          
     def stopMotor(self):
         try:
@@ -278,6 +310,16 @@ class TrinamGUI(QWidget) :
         except Exception as e:
             self.messageBox.setText('Stop fail:'+ str(e))
             pass
+    
+    def setSwitchStatus(self):
+        try: 
+             print(self.motor.get_left_switch_stat())
+             print(self.motor.get_right_switch_stat())
+             self.leftSwitch.setChecked(self.motor.get_left_switch_stat())
+             self.rightSwitch.setChecked(self.motor.get_right_switch_stat())
+        except Exception as e:
+             self.messageBox.setText(str(e))
+            
     
 ###############################################################################
 #               APPLICATION EXIT                                              #
@@ -290,6 +332,11 @@ class TrinamGUI(QWidget) :
             pass
         try:
             self.motor.close()
+        except:
+            pass
+        try:
+            self.posThread.stop()
+            self.switchThread.stop()
         except:
             pass
         finally: 

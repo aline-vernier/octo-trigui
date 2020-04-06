@@ -10,6 +10,7 @@ from serial import Serial
 import pyTMCL
 
 
+
 class abstractMotor(object):
     def __init__(self, port, module_address, motor_id, confSettings):
         
@@ -33,8 +34,8 @@ class abstractMotor(object):
             
         try:
             self.motor = self.bus.get_motor(self.module_address, self.motor_id)
-        except:
-            print("failed to create motor")
+        except Exception as e:
+            raise e
             
             
         try :
@@ -47,7 +48,7 @@ class abstractMotor(object):
             
         except Exception as e :
             self.serial_port.close()
-            print('Failed to load config file' + str(e))
+            raise e
         
         try : 
 
@@ -98,9 +99,28 @@ class abstractMotor(object):
     
     def get_acc(self):
         return self.motor.get_axis_parameter(5)
+    
     def set_acc(self, acc):
         self.motor.set_axis_parameter(5, acc)
     
+    def get_left_switch_stat(self):
+        stat = self.motor.get_axis_parameter(11)
+        if stat == 0:
+            stat = False
+        else:
+            stat = True
+        return stat
+    
+    def get_right_switch_stat(self):
+        stat = self.motor.get_axis_parameter(10)
+        if stat == 0:
+            stat = False
+        else:
+            stat = True
+        return stat
+
+
+        
         
 
             
