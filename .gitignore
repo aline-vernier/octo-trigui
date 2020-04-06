@@ -1,0 +1,23 @@
+# Libraries
+*.lvlibp
+*.llb
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables and build outputs
+*.exe
+*.zip
+*.toc
+*.pyz
+*.manifest
+warn*.txt
+*.html
+
+
+# Metadata
+*.aliases
+*.lvlps
