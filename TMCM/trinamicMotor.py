@@ -21,15 +21,15 @@ class abstractMotor(object):
         
         # Connect, and get motor : returns Bus and Motor instances from pyTMCL module
         try:
-            self.serial_port = Serial(self.port)
+            self.serial_port = Serial(self.port, timeout=1, write_timeout=1)
   
-        except :
-            print("failed to open port")
+        except Exception as e:
+            raise e
         
         try:
             self.bus = pyTMCL.connect(self.serial_port)
-        except :
-            print("failed to create bus")
+        except Exception as e:
+            raise e
             
         try:
             self.motor = self.bus.get_motor(self.module_address, self.motor_id)
@@ -61,8 +61,11 @@ class abstractMotor(object):
             self.STOP()
             
         except Exception as e :
-            self.serial_port.close()
-            print('Failed to set motor config :' + str(e))
+            raise e
+            try :
+                self.serial_port.close()
+            except :
+                pass
         
     def close(self):
         self.motor.stop()
@@ -71,19 +74,18 @@ class abstractMotor(object):
     def STOP(self):
         self.motor.stop()
         
-    def callback(self):
-        print ('''Position reached: %d steps'''%self.motor.get_axis_parameter(1))
     
     def set_param(self, n, val):
-        print (n)
-        print(val)
-        self.motor.set_axis_parameter(n, val)        
+        try:
+            self.motor.set_axis_parameter(n, val)      
+        except Exception as e : 
+            raise e
     
-    def move_absolute(self, steps):
-        self.motor.move_absolute(steps, self.callback)
+    def move_absolute(self, steps, callbackFunction):
+        self.motor.move_absolute(steps, callbackFunction)
         
-    def move_relative(self, steps, anyFunction):
-        self.motor.move_relative(steps, anyFunction)
+    def move_relative(self, steps, callbackFunction):
+        self.motor.move_relative(steps, callbackFunction)
     
     def get_pos(self):
         return self.motor.get_axis_parameter(1)

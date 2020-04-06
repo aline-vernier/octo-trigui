@@ -6,19 +6,16 @@ Created on Thu Apr  2 13:50:00 2020
 """
 
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QApplication,QVBoxLayout,QHBoxLayout,QWidget,QPushButton,QSpinBox,QLineEdit
-from PyQt5.QtWidgets import QComboBox,QSlider,QLabel,QInputDialog
-from pyqtgraph.Qt import QtCore
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication,QVBoxLayout,QHBoxLayout,QWidget
+from PyQt5.QtWidgets import QComboBox,QLabel,QPushButton,QSpinBox,QLineEdit
 
 from PyQt5.QtGui import QIcon
 
-import sys, time, string
+import sys
 from serial.tools.list_ports import comports
+
 import trinamicMotor
 
-
-import qdarkstyle # pip install qdarkstyle https://github.com/ColinDuquesnoy/QDarkStyleSheet  sur conda
 import pathlib,os
 
 
@@ -40,98 +37,152 @@ class TrinamGUI(QWidget) :
         self.setup()
         self.actionButton()
         self.listComPorts()
-        
 
-
-
+###############################################################################
+#               SETTING UP UI LAYOUT                                          #
+###############################################################################  
         
     def setup(self):    
         
         vbox=QVBoxLayout()
-        
-        
+
+########  Intro : connect & disconnect
         intro = QHBoxLayout()
         self.comPorts = QComboBox()
         self.comPorts.setMaximumWidth(80)
         
         self.refresh=QPushButton('Refresh')
         self.refresh.setMaximumWidth(120)
+        
+        self.connectBtn = QPushButton('Connect Motor')
+        self.disconnectBtn = QPushButton('Disconnect Motor')
                 
         intro.addWidget(self.comPorts)
         intro.addWidget(self.refresh)
-        intro.addStretch(500)
+        intro.addWidget(self.connectBtn)
+        intro.addWidget(self.disconnectBtn)
+        intro.addStretch(0)
         vbox.addLayout(intro)
         
-        mot1=QHBoxLayout()
-        self.connectBtn = QPushButton('Connect Motor')
-        self.disconnectBtn = QPushButton('Disconnect Motor')
+########  Message  
         
+        message = QHBoxLayout()
+        self.messageBox = QLineEdit()
+        self.messageBox.setMaximumWidth(600)
+        self.messageBox.setReadOnly(True)
+        self.messageLabel = QLabel("Message")
+        message.addWidget(self.messageLabel)
+        message.addWidget(self.messageBox)
+        vbox.addLayout(message)
+        
+########  Relative movement      
+        
+        relHBox=QHBoxLayout()
         self.moveMinusBtn = QPushButton('Move rel -')
         self.movePlusBtn = QPushButton('Move rel +')
         
         self.movmentBox = QSpinBox()
         self.movmentBox.setMinimum(0)
         self.movmentBox.setMaximum(10000000)
-        self.movmentBox.setMaximumWidth(80)
+        self.movmentBox.setMaximumWidth(120)
+    
+        relHBox.addWidget(self.moveMinusBtn)
+        relHBox.addWidget(self.movmentBox);
+        relHBox.addWidget(self.movePlusBtn)
+        vbox.addLayout(relHBox)
         
+########  Absolute movement   
         
-        self.STOP_Btn = QPushButton('STOP !')
+        absHBox=QHBoxLayout()
+        self.moveAbsBtn = QPushButton('Move abs.')
         
+        self.movmentAbsBox = QSpinBox()
+        self.movmentAbsBox.setMinimum(-10000000)
+        self.movmentAbsBox.setMaximum(10000000)
+        self.movmentAbsBox.setMaximumWidth(120)
+    
+        absHBox.addWidget(self.movmentAbsBox)
+        absHBox.addWidget(self.moveAbsBtn)
+        
+
+        vbox.addLayout(absHBox)
+        
+########  Set Velocity          
+ 
+        velHBox=QHBoxLayout()
         self.velBtn = QPushButton('Set Vel')
         
         self.velBox = QSpinBox()
         self.velBox.setMinimum(0)
         self.velBox.setMaximum(12000)
-        self.velBox.setMaximumWidth(80)
+        self.velBox.setMaximumWidth(120)   
         
+        velHBox.addWidget(self.velBox)
+        velHBox.addWidget(self.velBtn)
+        
+        vbox.addLayout(velHBox)
+        
+########  Set Acceleration          
+ 
+        accHBox=QHBoxLayout()
         self.accBtn = QPushButton('Set Acc')
         
         self.accBox = QSpinBox()
         self.accBox.setMinimum(0)
-        self.accBox.setMaximum(9000)
-        self.accBox.setMaximumWidth(80)
+        self.accBox.setMaximum(12000)
+        self.accBox.setMaximumWidth(120)   
         
+        accHBox.addWidget(self.accBox)
+        accHBox.addWidget(self.accBtn)
+        
+        vbox.addLayout(accHBox)
+        
+########  Position and stop
+        
+        posNStopHBox=QHBoxLayout()
         self.posBox = QLineEdit()
         self.posBox.setMaximumWidth(80)
         self.posBox.setReadOnly(True)
         self.posLabel = QLabel("Curr Pos")
         
+        self.STOP_Btn = QPushButton('STOP !')
         
-        self.messageBox = QLineEdit()
-        self.messageBox.setMaximumWidth(120)
-        self.messageBox.setReadOnly(True)
-        self.messageLabel = QLabel("Message")
+        posNStopHBox.addWidget(self.posLabel)
+        posNStopHBox.addWidget(self.posBox)
+        posNStopHBox.addWidget(self.STOP_Btn)
         
+        vbox.addLayout(posNStopHBox)
+        
+########  Set full layout
 
-        mot1.addWidget(self.connectBtn)
-        mot1.addWidget(self.moveMinusBtn)
-        mot1.addWidget(self.movmentBox);
-        mot1.addWidget(self.movePlusBtn)
-        mot1.addWidget(self.posLabel)
-        mot1.addWidget(self.posBox)
-        mot1.addWidget(self.velBox)
-        mot1.addWidget(self.velBtn)
-        mot1.addWidget(self.accBox)
-        mot1.addWidget(self.accBtn)
-        mot1.addWidget(self.messageLabel)
-        mot1.addWidget(self.messageBox)
-        mot1.addWidget(self.STOP_Btn)
-        mot1.addWidget(self.disconnectBtn)
-
-        vbox.addLayout(mot1)
         self.setLayout(vbox)
 
+########  Make sure everything is clean on closing
+
+        appli.aboutToQuit.connect(self.cleanOnClosing)
         
+   
+###############################################################################
+#               DEFINING BUTTON BEHAVIOUR                                     #
+###############################################################################        
+    
+     
     def actionButton(self):
+        
+        
         self.refresh.clicked.connect(self.listComPorts)
         self.connectBtn.clicked.connect(self.createMotor)
         self.disconnectBtn.clicked.connect(self.removeMotor)
         self.moveMinusBtn.clicked.connect(lambda : self.moveMotor(-1))
         self.movePlusBtn.clicked.connect(lambda : self.moveMotor(1))
+        self.moveAbsBtn.clicked.connect(self.moveAbsMotor)
         self.velBtn.clicked.connect(self.changeVel)
         self.accBtn.clicked.connect(self.changeAcc)
         self.STOP_Btn.clicked.connect(self.stopMotor)
-        
+
+###############################################################################
+#               INITIALIZATION AND CLOSURE                                    #
+###############################################################################      
           
     def listComPorts(self):
         try:
@@ -146,11 +197,12 @@ class TrinamGUI(QWidget) :
     def createMotor(self):   
         try:
             port = self.comPorts.currentText()
-            self.motor=trinamicMotor.abstractMotor(port, 1, 0, 'configMoteur.ini')
+            self.motor=trinamicMotor.abstractMotor(port, 1, 0, 
+                                                   'configMoteur.ini')
             self.messageBox.setText('Success')
             
-        except :
-            self.messageBox.setText('Mot open fail')
+        except Exception as e :
+            self.messageBox.setText('Mot open fail:' + str(e))
             self.connectBtn.setEnabled(True)
         else:    
             try:
@@ -158,10 +210,9 @@ class TrinamGUI(QWidget) :
                 self.accBox.setValue(self.motor.get_acc())
                 self.posBox.setText(str(self.motor.get_pos()))
             except Exception as e:
-                print(str(e))
+                self.messageBox.setText(str(e))
             else :
                 self.connectBtn.setEnabled(False)
-
 
     
     def removeMotor(self):
@@ -173,6 +224,10 @@ class TrinamGUI(QWidget) :
             self.messageBox.setText('Mot close fail')
             pass
         self.connectBtn.setEnabled(True)
+
+###############################################################################
+#               MOTOR BEHAVIOUR                                               #
+###############################################################################
     
     def changePosVal(self):
         try: 
@@ -185,8 +240,16 @@ class TrinamGUI(QWidget) :
         try:
         
             self.motor.move_relative(mv, lambda : self.changePosVal())
-        except :
-            self.messageBox.setText('Mov fail')
+        except Exception as e :
+            self.messageBox.setText('Rel Mov fail:' + str(e))
+            pass
+        
+    def moveAbsMotor(self, direction):
+        mv = self.movmentAbsBox.value()
+        try:
+            self.motor.move_absolute(mv, lambda : self.changePosVal())
+        except Exception as e :
+            self.messageBox.setText('Abs Mov fail:' + str(e))
             pass
     
     def changeVel(self):
@@ -194,8 +257,8 @@ class TrinamGUI(QWidget) :
         try:
         
             self.motor.set_vel(vel)
-        except :
-            self.messageBox.setText('Vel fail')
+        except Exception as e:
+            self.messageBox.setText('Vel fail:'+ str(e))
             pass
         
     def changeAcc(self):
@@ -203,8 +266,8 @@ class TrinamGUI(QWidget) :
         try:
         
             self.motor.set_vel(acc)
-        except :
-            self.messageBox.setText('Acc fail')
+        except Exception as e:
+            self.messageBox.setText('Acc fail:'+ str(e))
             pass
     
          
@@ -212,10 +275,33 @@ class TrinamGUI(QWidget) :
         try:
         
             self.motor.STOP()
-        except :
-            self.messageBox.setText('Stop fail')
+        except Exception as e:
+            self.messageBox.setText('Stop fail:'+ str(e))
             pass
+    
+###############################################################################
+#               APPLICATION EXIT                                              #
+###############################################################################
+    
+    def cleanOnClosing(self):
+        try:
+            self.motor.STOP()
+        except:
+            pass
+        try:
+            self.motor.close()
+        except:
+            pass
+        finally: 
+            try:
+                sys.exit(0)
+            except Exception as e:
+                print(str(e))
         
+        
+###############################################################################
+#              MAIN                                                           #          
+###############################################################################        
   
 
 if __name__ == "__main__":
